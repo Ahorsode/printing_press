@@ -1,0 +1,317 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Upload, File, Calculator, Send, Sparkles } from "lucide-react";
+import { toast } from "sonner";
+// pdfjs-dist import moved to dynamic import inside component
+
+const SERVICES = [
+    { id: "cards", name: "Business Cards", basePrice: 50, unit: "pack of 100" },
+    { id: "stickers", name: "Stickers", basePrice: 30, unit: "sheet" },
+    { id: "documents", name: "Documents", basePrice: 1, unit: "page" },
+    { id: "flyers", name: "Flyers/Handouts", basePrice: 2, unit: "piece" },
+    { id: "banner", name: "Large Banner", basePrice: 150, unit: "piece" },
+];
+
+export default function SmartOrderForm() {
+    const [name, setName] = useState("");
+    const [phone, setPhone] = useState("");
+    const [service, setService] = useState("");
+    const [quantity, setQuantity] = useState(1);
+    const [pageCount, setPageCount] = useState(0); // New state for pages
+    const [instructions, setInstructions] = useState("");
+    const [fileName, setFileName] = useState<string | null>(null);
+    const [estTotal, setEstTotal] = useState(0);
+
+    const [isUploading, setIsUploading] = useState(false);
+    const [fileUrl, setFileUrl] = useState<string | null>(null);
+
+    useEffect(() => {
+        const selectedService = SERVICES.find(s => s.id === service);
+        if (!selectedService) {
+            setEstTotal(0);
+            return;
+        }
+
+        // Logic: If "documents", multiply by page count. Else just quantity.
+        // Assuming "quantity" for documents means "number of copies of the full document".
+        if (selectedService.id === "documents") {
+            // Fallback to 1 page if not detected yet to avoid 0 cost
+            const pages = pageCount > 0 ? pageCount : 1;
+            setEstTotal(selectedService.basePrice * quantity * pages);
+        } else {
+            setEstTotal(selectedService.basePrice * quantity);
+        }
+    }, [service, quantity, pageCount]);
+
+    const countPdfPages = async (file: File): Promise<number> => {
+        try {
+            // Dynamic import to avoid SSR/Build issues
+            const pdfjsLib = await import("pdfjs-dist");
+            // Set worker source logic:
+            // We use unpkg for better version matching reliability
+            pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            return pdf.numPages;
+        } catch (error) {
+            console.error("Error reading PDF:", error);
+            return 0;
+        }
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            setFileName(file.name);
+
+            // Check for PDF and count pages
+            if (file.type === "application/pdf") {
+                toast.info("Analyzing document...", { duration: 2000 });
+                const pages = await countPdfPages(file);
+                if (pages > 0) {
+                    setPageCount(pages);
+                    toast.success(`Detected ${pages} pages.`);
+                } else {
+                    toast.error("Could not detect pages in PDF.");
+                }
+            } else {
+                setPageCount(0); // Reset if not PDF
+            }
+
+            // Start Upload
+            setIsUploading(true);
+            const formData = new FormData();
+            formData.append("file", file);
+            // NOTE: These must be replaced with your actual Cloudinary details
+            formData.append("upload_preset", "aoccft2g");
+            const CLOUD_NAME = "deaqjjyl6";
+
+            try {
+                const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`, {
+                    method: "POST",
+                    body: formData,
+                });
+
+                if (!res.ok) throw new Error("Upload failed");
+
+                const data = await res.json();
+                setFileUrl(data.secure_url);
+                toast.success("File uploaded successfully!");
+            } catch (error) {
+                console.error(error);
+                toast.error("Upload failed", {
+                    description: "Please check your internet or configuration."
+                });
+            } finally {
+                setIsUploading(false);
+            }
+        }
+    };
+
+    const generateWhatsAppLink = () => {
+        const serviceName = SERVICES.find(s => s.id === service)?.name || "Printing";
+        const serviceId = SERVICES.find(s => s.id === service)?.id;
+
+        let detailsText = `*Service:* ${serviceName}\n- *Quantity:* ${quantity}`;
+
+        if (serviceId === "documents" && pageCount > 0) {
+            detailsText += `\n- *Pages per Copy:* ${pageCount}`;
+            detailsText += `\n- *Total Pages to Print:* ${pageCount * quantity}`;
+        }
+
+        const text = `Hello! I'd like to place an order.
+
+*Details:*
+- *Name:* ${name}
+${detailsText}
+- *Note:* ${instructions}
+${fileUrl ? `- *File Link:* ${fileUrl}` : (fileName ? `- *File:* (Upload pending or Failed)` : "")}
+
+*Estimated Total:* GHS ${estTotal.toFixed(2)}
+
+Please confirm my order.`;
+
+        const encodedText = encodeURIComponent(text);
+        return `https://wa.me/233542897396?text=${encodedText}`;
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!name || !phone || !service) {
+            toast.error("Missing Details", { description: "Please fill in all required fields." });
+            return;
+        }
+
+        if (isUploading) {
+            toast.loading("Uploading File...", { description: "Please wait for the upload to finish." });
+            return;
+        }
+
+        window.open(generateWhatsAppLink(), '_blank');
+        toast.success("Opening WhatsApp...", { description: "Hit send to finalize your order!" });
+    };
+
+    return (
+        <section className="py-24 bg-muted/20 relative" id="order-form">
+            {/* Decorative Blur */}
+            <div className="absolute top-1/4 left-0 w-[400px] h-[400px] bg-primary/10 rounded-full blur-[120px] -z-10" />
+
+            <div className="container px-4 md:px-6">
+                <div className="max-w-3xl mx-auto">
+                    <div className="text-center mb-12">
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.6 }}
+                            viewport={{ once: true }}
+                        >
+                            <h2 className="text-3xl font-bold tracking-tight mb-3">Start Your <span className="text-primary">Premium Order</span></h2>
+                            <p className="text-muted-foreground">Fill out the details below for an instant quote link.</p>
+                        </motion.div>
+                    </div>
+
+                    <motion.div
+                        initial={{ opacity: 0, y: 40 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.8, delay: 0.2 }}
+                        viewport={{ once: true }}
+                    >
+                        <Card className="border-primary/20 shadow-2xl bg-background/60 backdrop-blur-xl">
+                            <CardHeader className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b border-primary/10">
+                                <CardTitle className="flex items-center gap-2 text-primary">
+                                    <Sparkles className="w-5 h-5" /> Smart Estimator
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-6 md:p-8">
+                                <form onSubmit={handleSubmit} className="space-y-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="name">Full Name</Label>
+                                            <Input
+                                                id="name"
+                                                placeholder="Kwame Doe"
+                                                value={name}
+                                                onChange={(e) => setName(e.target.value)}
+                                                required
+                                                className="bg-background/50 border-primary/20 focus:border-primary focus:ring-primary/20 transition-all"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="phone">WhatsApp Number</Label>
+                                            <Input
+                                                id="phone"
+                                                placeholder="054 289 7396"
+                                                value={phone}
+                                                onChange={(e) => setPhone(e.target.value)}
+                                                required
+                                                type="tel"
+                                                className="bg-background/50 border-primary/20 focus:border-primary focus:ring-primary/20 transition-all"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <Label>Service Type</Label>
+                                            <Select onValueChange={(val) => setService(val)}>
+                                                <SelectTrigger className="bg-background/50 border-primary/20 focus:border-primary focus:ring-primary/20">
+                                                    <SelectValue placeholder="Select a service..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {SERVICES.map((s) => (
+                                                        <SelectItem key={s.id} value={s.id}>
+                                                            {s.name} (GHS {s.basePrice}/{s.unit})
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="quantity">Quantity</Label>
+                                            <Input
+                                                id="quantity"
+                                                type="number"
+                                                min="1"
+                                                value={quantity}
+                                                onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
+                                                className="bg-background/50 border-primary/20 focus:border-primary focus:ring-primary/20"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>Upload Design (PDF/Image)</Label>
+                                        <div className="border-2 border-dashed border-primary/20 rounded-xl p-8 text-center hover:bg-primary/5 hover:border-primary/40 transition-all relative cursor-pointer group">
+                                            <input
+                                                type="file"
+                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                                onChange={handleFileChange}
+                                                accept="image/*,.pdf"
+                                            />
+                                            <div className="flex flex-col items-center justify-center space-y-2 relative z-10">
+                                                {isUploading ? (
+                                                    <>
+                                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                                                        <span className="text-sm font-medium text-primary">Uploading...</span>
+                                                    </>
+                                                ) : fileName ? (
+                                                    <>
+                                                        <File className="w-10 h-10 text-primary" />
+                                                        <span className="font-medium text-primary">{fileName}</span>
+                                                        {fileUrl && <span className="text-xs text-green-600 font-bold">✓ Ready for WhatsApp</span>}
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Upload className="w-10 h-10 text-muted-foreground group-hover:text-primary transition-colors" />
+                                                        <span className="text-sm text-muted-foreground group-hover:text-foreground">
+                                                            Drag & drop or Click to Upload
+                                                        </span>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="instructions">Special Instructions</Label>
+                                        <Textarea
+                                            id="instructions"
+                                            placeholder="E.g., Matte finish, round corners..."
+                                            value={instructions}
+                                            onChange={(e) => setInstructions(e.target.value)}
+                                            className="bg-background/50 border-primary/20 focus:border-primary focus:ring-primary/20"
+                                        />
+                                    </div>
+
+                                    <div className="flex items-center justify-between p-6 bg-primary/5 rounded-xl border border-primary/10">
+                                        <div>
+                                            <span className="text-sm text-muted-foreground font-medium">Estimated Total</span>
+                                            <p className="text-3xl font-bold text-primary">GHS {estTotal.toFixed(2)}</p>
+                                            {pageCount > 0 && service === "documents" && (
+                                                <p className="text-xs text-muted-foreground mt-1">
+                                                    ({quantity} copies × {pageCount} pages × GHS {SERVICES.find(s => s.id === "documents")?.basePrice}/page)
+                                                </p>
+                                            )}
+                                        </div>
+                                        <Button size="lg" className="gap-2 rounded-full px-8 shadow-lg shadow-primary/20 hover:scale-105 transition-transform" type="submit">
+                                            Send Order <Send className="w-4 h-4" />
+                                        </Button>
+                                    </div>
+                                </form>
+                            </CardContent>
+                        </Card>
+                    </motion.div>
+                </div>
+            </div>
+        </section>
+    );
+}

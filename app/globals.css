@@ -1,26 +1,137 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --radius: 0.5rem;
+  --background: #EFE9E1;
+  /* Cream */
+  --foreground: #322D29;
+  /* Charcoal */
+  --card: #FFFFFF;
+  --card-foreground: #322D29;
+  --popover: #FFFFFF;
+  --popover-foreground: #322D29;
+  --primary: #72383D;
+  /* Deep Red/Marsala */
+  --primary-foreground: #EFE9E1;
+  --secondary: #AC9C8D;
+  /* Taupe */
+  --secondary-foreground: #322D29;
+  --muted: #D1C7BD;
+  /* Light Taupe */
+  --muted-foreground: #72383D;
+  --accent: #D9D9D9;
+  /* Light Grey */
+  --accent-foreground: #322D29;
+  --destructive: #72383D;
+  --border: #AC9C8D;
+  --input: #D1C7BD;
+  --ring: #72383D;
+  --chart-1: #72383D;
+  --chart-2: #AC9C8D;
+  --chart-3: #D1C7BD;
+  --chart-4: #322D29;
+  --chart-5: #EFE9E1;
+  --sidebar: #EFE9E1;
+  --sidebar-foreground: #322D29;
+  --sidebar-primary: #72383D;
+  --sidebar-primary-foreground: #EFE9E1;
+  --sidebar-accent: #D1C7BD;
+  --sidebar-accent-foreground: #322D29;
+  --sidebar-border: #AC9C8D;
+  --sidebar-ring: #72383D;
+}
+
+.dark {
+  --background: #322D29;
+  /* Charcoal */
+  --foreground: #EFE9E1;
+  /* Cream */
+  --card: #2A2622;
+  /* Darker Charcoal/Black */
+  --card-foreground: #EFE9E1;
+  --popover: #322D29;
+  --popover-foreground: #EFE9E1;
+  --primary: #AC9C8D;
+  /* Taupe/Gold-ish in dark mode? or keep Red? Let's try lighter Taupe for contrast */
+  --primary-foreground: #322D29;
+  --secondary: #72383D;
+  /* Red as secondary */
+  --secondary-foreground: #EFE9E1;
+  --muted: #4A4540;
+  --muted-foreground: #AC9C8D;
+  --accent: #72383D;
+  --accent-foreground: #EFE9E1;
+  --destructive: #9B2C2C;
+  --border: #4A4540;
+  --input: #4A4540;
+  --ring: #AC9C8D;
+  --chart-1: #AC9C8D;
+  --chart-2: #72383D;
+  --chart-3: #D1C7BD;
+  --chart-4: #EFE9E1;
+  --chart-5: #322D29;
+  --sidebar: #322D29;
+  --sidebar-foreground: #EFE9E1;
+  --sidebar-primary: #AC9C8D;
+  --sidebar-primary-foreground: #322D29;
+  --sidebar-accent: #72383D;
+  --sidebar-accent-foreground: #EFE9E1;
+  --sidebar-border: #4A4540;
+  --sidebar-ring: #AC9C8D;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  body {
+    @apply bg-background text-foreground;
+  }
 }
