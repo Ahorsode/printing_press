@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Upload, File, Calculator, Send, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-// pdfjs-dist import moved to dynamic import inside component
+import { upload } from "@vercel/blob/client";
 
 const SERVICES = [
     { id: "cards", name: "Business Cards", basePrice: 50, unit: "pack of 100" },
@@ -87,29 +87,24 @@ export default function SmartOrderForm() {
                 setPageCount(0); // Reset if not PDF
             }
 
+            // ... (inside handleFileChange)
+
             // Start Upload
             setIsUploading(true);
-            const formData = new FormData();
-            formData.append("file", file);
-            // NOTE: These must be replaced with your actual Cloudinary details
-            formData.append("upload_preset", "aoccft2g");
-            const CLOUD_NAME = "deaqjjyl6";
 
             try {
-                const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`, {
-                    method: "POST",
-                    body: formData,
+                // Vercel Blob Upload
+                const newBlob = await upload(file.name, file, {
+                    access: 'public',
+                    handleUploadUrl: '/api/upload',
                 });
 
-                if (!res.ok) throw new Error("Upload failed");
-
-                const data = await res.json();
-                setFileUrl(data.secure_url);
+                setFileUrl(newBlob.url);
                 toast.success("File uploaded successfully!");
             } catch (error) {
                 console.error(error);
                 toast.error("Upload failed", {
-                    description: "Please check your internet or configuration."
+                    description: "Please checking your internet. Note: Blob storage needs Vercel deployment.",
                 });
             } finally {
                 setIsUploading(false);
