@@ -18,6 +18,7 @@ const SERVICES = [
     { id: "documents", name: "Documents", basePrice: 1, unit: "page" },
     { id: "flyers", name: "Flyers/Handouts", basePrice: 2, unit: "piece" },
     { id: "banner", name: "Large Banner", basePrice: 150, unit: "piece" },
+    { id: "passport", name: "Passport Pictures", basePrice: 15, unit: "set of 8" },
 ];
 
 export default function SmartOrderForm() {
@@ -26,6 +27,11 @@ export default function SmartOrderForm() {
     const [service, setService] = useState("");
     const [quantity, setQuantity] = useState(1);
     const [pageCount, setPageCount] = useState(0); // New state for pages
+
+    // New Options State
+    const [printColor, setPrintColor] = useState("bw"); // bw | color
+    const [printSide, setPrintSide] = useState("simplex"); // simplex | duplex
+
     const [instructions, setInstructions] = useState("");
     const [fileName, setFileName] = useState<string | null>(null);
     const [estTotal, setEstTotal] = useState(0);
@@ -40,16 +46,30 @@ export default function SmartOrderForm() {
             return;
         }
 
-        // Logic: If "documents", multiply by page count. Else just quantity.
-        // Assuming "quantity" for documents means "number of copies of the full document".
         if (selectedService.id === "documents") {
-            // Fallback to 1 page if not detected yet to avoid 0 cost
+            // Enhanced Document Pricing
+            // Base Rules:
+            // 1. Pages Input: Total Detect Pages (or 1 fallback)
+            // 2. Sheets Needed:
+            //    - if simplex: Sheets = Pages
+            //    - if duplex:  Sheets = ceil(Pages / 2)
+            // 3. Price Per Sheet:
+            //    - BW: 1 GHS (Base)
+            //    - Color: 2 GHS
+
             const pages = pageCount > 0 ? pageCount : 1;
-            setEstTotal(selectedService.basePrice * quantity * pages);
+            const sheetsPerCopy = printSide === "duplex" ? Math.ceil(pages / 2) : pages;
+            const totalSheets = sheetsPerCopy * quantity;
+
+            const pricePerSheet = printColor === "color" ? 2 : 1;
+
+            setEstTotal(totalSheets * pricePerSheet);
+
         } else {
+            // Standard Pricing
             setEstTotal(selectedService.basePrice * quantity);
         }
-    }, [service, quantity, pageCount]);
+    }, [service, quantity, pageCount, printColor, printSide]);
 
     const countPdfPages = async (file: File): Promise<number> => {
         try {
@@ -87,8 +107,6 @@ export default function SmartOrderForm() {
                 setPageCount(0); // Reset if not PDF
             }
 
-            // ... (inside handleFileChange)
-
             // Start Upload
             setIsUploading(true);
 
@@ -118,9 +136,10 @@ export default function SmartOrderForm() {
 
         let detailsText = `*Service:* ${serviceName}\n- *Quantity:* ${quantity}`;
 
-        if (serviceId === "documents" && pageCount > 0) {
-            detailsText += `\n- *Pages per Copy:* ${pageCount}`;
-            detailsText += `\n- *Total Pages to Print:* ${pageCount * quantity}`;
+        if (serviceId === "documents") {
+            if (pageCount > 0) detailsText += `\n- *Pages per Copy:* ${pageCount}`;
+            detailsText += `\n- *Color:* ${printColor === "color" ? "Colored" : "Black & White"}`;
+            detailsText += `\n- *Sides:* ${printSide === "duplex" ? "Front/Back" : "Front Only"}`;
         }
 
         const text = `Hello! I'd like to place an order.
@@ -243,6 +262,66 @@ Please confirm my order.`;
                                         </div>
                                     </div>
 
+                                    {/* Document Specific Options */}
+                                    {service === "documents" && (
+                                        <motion.div
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: "auto" }}
+                                            className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-primary/5 rounded-lg border border-primary/10"
+                                        >
+                                            <div className="space-y-3">
+                                                <Label>Color Preference</Label>
+                                                <div className="flex gap-4">
+                                                    <label className="flex items-center space-x-2 cursor-pointer">
+                                                        <input
+                                                            type="radio"
+                                                            name="color"
+                                                            checked={printColor === "bw"}
+                                                            onChange={() => setPrintColor("bw")}
+                                                            className="accent-primary"
+                                                        />
+                                                        <span className="text-sm">Black/White (GHS 1/sheet)</span>
+                                                    </label>
+                                                    <label className="flex items-center space-x-2 cursor-pointer">
+                                                        <input
+                                                            type="radio"
+                                                            name="color"
+                                                            checked={printColor === "color"}
+                                                            onChange={() => setPrintColor("color")}
+                                                            className="accent-primary"
+                                                        />
+                                                        <span className="text-sm">Colored (GHS 2/sheet)</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-3">
+                                                <Label>Print Sides</Label>
+                                                <div className="flex gap-4">
+                                                    <label className="flex items-center space-x-2 cursor-pointer">
+                                                        <input
+                                                            type="radio"
+                                                            name="side"
+                                                            checked={printSide === "simplex"}
+                                                            onChange={() => setPrintSide("simplex")}
+                                                            className="accent-primary"
+                                                        />
+                                                        <span className="text-sm">Front Only</span>
+                                                    </label>
+                                                    <label className="flex items-center space-x-2 cursor-pointer">
+                                                        <input
+                                                            type="radio"
+                                                            name="side"
+                                                            checked={printSide === "duplex"}
+                                                            onChange={() => setPrintSide("duplex")}
+                                                            className="accent-primary"
+                                                        />
+                                                        <span className="text-sm">Front/Back (Saves Paper)</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    )}
+
                                     <div className="space-y-2">
                                         <Label>Upload Design (PDF/Image)</Label>
                                         <div className="border-2 border-dashed border-primary/20 rounded-xl p-8 text-center hover:bg-primary/5 hover:border-primary/40 transition-all relative cursor-pointer group">
@@ -293,7 +372,7 @@ Please confirm my order.`;
                                             <p className="text-3xl font-bold text-primary">GHS {estTotal.toFixed(2)}</p>
                                             {pageCount > 0 && service === "documents" && (
                                                 <p className="text-xs text-muted-foreground mt-1">
-                                                    ({quantity} copies × {pageCount} pages × GHS {SERVICES.find(s => s.id === "documents")?.basePrice}/page)
+                                                    ({quantity} copies × {Math.ceil(pageCount / (printSide === "duplex" ? 2 : 1))} sheets × GHS {printColor === "color" ? 2 : 1})
                                                 </p>
                                             )}
                                         </div>
