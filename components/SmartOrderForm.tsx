@@ -33,11 +33,9 @@ export default function SmartOrderForm() {
     const [printSide, setPrintSide] = useState("simplex"); // simplex | duplex
 
     const [instructions, setInstructions] = useState("");
-    const [fileName, setFileName] = useState<string | null>(null);
     const [estTotal, setEstTotal] = useState(0);
-
+    const [files, setFiles] = useState<{ name: string; url: string; pages?: number }[]>([]);
     const [isUploading, setIsUploading] = useState(false);
-    const [fileUrl, setFileUrl] = useState<string | null>(null);
 
     useEffect(() => {
         const selectedService = SERVICES.find(s => s.id === service);
@@ -47,36 +45,19 @@ export default function SmartOrderForm() {
         }
 
         if (selectedService.id === "documents") {
-            // Enhanced Document Pricing
-            // Base Rules:
-            // 1. Pages Input: Total Detect Pages (or 1 fallback)
-            // 2. Sheets Needed:
-            //    - if simplex: Sheets = Pages
-            //    - if duplex:  Sheets = ceil(Pages / 2)
-            // 3. Price Per Sheet:
-            //    - BW: 1 GHS (Base)
-            //    - Color: 2 GHS
-
             const pages = pageCount > 0 ? pageCount : 1;
             const sheetsPerCopy = printSide === "duplex" ? Math.ceil(pages / 2) : pages;
             const totalSheets = sheetsPerCopy * quantity;
-
             const pricePerSheet = printColor === "color" ? 2 : 1;
-
             setEstTotal(totalSheets * pricePerSheet);
-
         } else {
-            // Standard Pricing
             setEstTotal(selectedService.basePrice * quantity);
         }
     }, [service, quantity, pageCount, printColor, printSide]);
 
     const countPdfPages = async (file: File): Promise<number> => {
         try {
-            // Dynamic import to avoid SSR/Build issues
             const pdfjsLib = await import("pdfjs-dist");
-            // Set worker source logic:
-            // We use unpkg for better version matching reliability
             pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
             const arrayBuffer = await file.arrayBuffer();
@@ -89,41 +70,49 @@ export default function SmartOrderForm() {
     };
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            setFileName(file.name);
-
-            // Check for PDF and count pages
-            if (file.type === "application/pdf") {
-                toast.info("Analyzing document...", { duration: 2000 });
-                const pages = await countPdfPages(file);
-                if (pages > 0) {
-                    setPageCount(pages);
-                    toast.success(`Detected ${pages} pages.`);
-                } else {
-                    toast.error("Could not detect pages in PDF.");
-                }
-            } else {
-                setPageCount(0); // Reset if not PDF
-            }
-
-            // Start Upload
+        if (e.target.files && e.target.files.length > 0) {
+            const selectedFiles = Array.from(e.target.files);
             setIsUploading(true);
 
-            try {
-                // Vercel Blob Upload
-                const newBlob = await upload(file.name, file, {
-                    access: 'public',
-                    handleUploadUrl: '/api/upload',
-                });
+            toast.info(`Uploading ${selectedFiles.length} file(s)...`);
 
-                setFileUrl(newBlob.url);
-                toast.success("File uploaded successfully!");
+            const uploadPromises = selectedFiles.map(async (file) => {
+                let pages = 0;
+                if (file.type === "application/pdf") {
+                    pages = await countPdfPages(file);
+                }
+
+                try {
+                    const newBlob = await upload(file.name, file, {
+                        access: 'public',
+                        handleUploadUrl: '/api/upload',
+                    });
+
+                    return { name: file.name, url: newBlob.url, pages };
+                } catch (error) {
+                    console.error(`Upload failed for ${file.name}:`, error);
+                    toast.error(`Failed to upload ${file.name}`);
+                    return null;
+                }
+            });
+
+            try {
+                const results = await Promise.all(uploadPromises);
+                const successfulUploads = results.filter((f): f is { name: string; url: string; pages: number } => f !== null);
+
+                setFiles(prev => [...prev, ...successfulUploads]);
+
+                // If the first file is a PDF, update pageCount for pricing (legacy behavior helper)
+                const firstPdf = successfulUploads.find(f => f.pages > 0);
+                if (firstPdf) {
+                    setPageCount(firstPdf.pages);
+                    toast.success(`Detected ${firstPdf.pages} pages in ${firstPdf.name}`);
+                }
+
+                toast.success(`Successfully uploaded ${successfulUploads.length} file(s).`);
             } catch (error) {
-                console.error(error);
-                toast.error("Upload failed", {
-                    description: "Please checking your internet. Note: Blob storage needs Vercel deployment.",
-                });
+                console.error("Global upload error:", error);
+                toast.error("An error occurred during upload.");
             } finally {
                 setIsUploading(false);
             }
@@ -131,10 +120,13 @@ export default function SmartOrderForm() {
     };
 
     const generateWhatsAppLink = () => {
-        const serviceName = SERVICES.find(s => s.id === service)?.name || "Printing";
-        const serviceId = SERVICES.find(s => s.id === service)?.id;
+        const selectedService = SERVICES.find(s => s.id === service);
+        const serviceName = selectedService?.name || "Printing";
+        const serviceUnit = selectedService?.unit || "";
+        const serviceId = selectedService?.id;
+        const timestamp = new Date().toLocaleString('en-GH', { timeZone: 'Africa/Accra' });
 
-        let detailsText = `*Service:* ${serviceName}\n- *Quantity:* ${quantity}`;
+        let detailsText = `*Service:* ${serviceName} ${serviceUnit ? `(${serviceUnit})` : ""}\n- *Quantity:* ${quantity}`;
 
         if (serviceId === "documents") {
             if (pageCount > 0) detailsText += `\n- *Pages per Copy:* ${pageCount}`;
@@ -142,17 +134,28 @@ export default function SmartOrderForm() {
             detailsText += `\n- *Sides:* ${printSide === "duplex" ? "Front/Back" : "Front Only"}`;
         }
 
-        const text = `Hello! I'd like to place an order.
+        const fileLinksText = files.length > 0
+            ? files.map((f, i) => `${i + 1}. ${f.name}: ${f.url}`).join('\n')
+            : "No files attached";
 
-*Details:*
+        const text = `🚀 *New Order from OB_Print*
+
+*Customer Info:*
 - *Name:* ${name}
+- *Phone:* ${phone}
+
+*Order Details:*
 ${detailsText}
-- *Note:* ${instructions}
-${fileUrl ? `- *File Link:* ${fileUrl}` : (fileName ? `- *File:* (Upload pending or Failed)` : "")}
+- *Note:* ${instructions || "None"}
+
+*Uploaded Files:*
+${fileLinksText}
 
 *Estimated Total:* GHS ${estTotal.toFixed(2)}
 
-Please confirm my order.`;
+*Order Date:* ${timestamp}
+
+Please confirm my order. Thank you!`;
 
         const encodedText = encodeURIComponent(text);
         return `https://wa.me/233550091091?text=${encodedText}`;
@@ -322,7 +325,7 @@ Please confirm my order.`;
                                         </motion.div>
                                     )}
 
-                                    <div className="space-y-2">
+                                    <div className="space-y-4">
                                         <Label>Upload Design (PDF/Image/Word/Excel)</Label>
                                         <div className="border-2 border-dashed border-primary/20 rounded-xl p-8 text-center hover:bg-primary/5 hover:border-primary/40 transition-all relative cursor-pointer group">
                                             <input
@@ -330,6 +333,7 @@ Please confirm my order.`;
                                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
                                                 onChange={handleFileChange}
                                                 accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                                                multiple
                                             />
                                             <div className="flex flex-col items-center justify-center space-y-2 relative z-10">
                                                 {isUploading ? (
@@ -337,22 +341,41 @@ Please confirm my order.`;
                                                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                                                         <span className="text-sm font-medium text-primary">Uploading...</span>
                                                     </>
-                                                ) : fileName ? (
-                                                    <>
-                                                        <File className="w-10 h-10 text-primary" />
-                                                        <span className="font-medium text-primary">{fileName}</span>
-                                                        {fileUrl && <span className="text-xs text-green-600 font-bold">✓ Ready for WhatsApp</span>}
-                                                    </>
                                                 ) : (
                                                     <>
                                                         <Upload className="w-10 h-10 text-muted-foreground group-hover:text-primary transition-colors" />
                                                         <span className="text-sm text-muted-foreground group-hover:text-foreground">
-                                                            Drag & drop or Click to Upload
+                                                            Drag & drop or Click to Upload Multiple Files
                                                         </span>
                                                     </>
                                                 )}
                                             </div>
                                         </div>
+
+                                        {/* File List */}
+                                        {files.length > 0 && (
+                                            <div className="space-y-2">
+                                                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Uploaded Files ({files.length})</Label>
+                                                <div className="grid grid-cols-1 gap-2">
+                                                    {files.map((file, idx) => (
+                                                        <div key={idx} className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/10">
+                                                            <File className="w-4 h-4 text-primary" />
+                                                            <span className="text-sm font-medium truncate flex-1">{file.name}</span>
+                                                            <span className="text-xs text-green-600 font-bold">✓ Ready</span>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-7 w-7 p-0 hover:text-destructive"
+                                                                onClick={() => setFiles(prev => prev.filter((_, i) => i !== idx))}
+                                                            >
+                                                                &times;
+                                                            </Button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="space-y-2">
