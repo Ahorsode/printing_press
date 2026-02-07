@@ -13,7 +13,16 @@ export async function POST(request: Request): Promise<NextResponse> {
                 // ⚠️ AUTHENTICATION CHECK SHOULD GO HERE IN A REAL APP
                 // For this public order form, we allow anyone to upload (be careful of spam)
                 return {
-                    allowedContentTypes: ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'],
+                    allowedContentTypes: [
+                        'image/jpeg',
+                        'image/png',
+                        'image/gif',
+                        'application/pdf',
+                        'application/msword',
+                        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                        'application/vnd.ms-excel',
+                        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                    ],
                     tokenPayload: JSON.stringify({
                         // optional, sent to your server on upload completion
                         // e.g. userId: user.id

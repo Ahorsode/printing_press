@@ -155,7 +155,7 @@ ${fileUrl ? `- *File Link:* ${fileUrl}` : (fileName ? `- *File:* (Upload pending
 Please confirm my order.`;
 
         const encodedText = encodeURIComponent(text);
-        return `https://wa.me/233542897396?text=${encodedText}`;
+        return `https://wa.me/233550091091?text=${encodedText}`;
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -323,13 +323,13 @@ Please confirm my order.`;
                                     )}
 
                                     <div className="space-y-2">
-                                        <Label>Upload Design (PDF/Image)</Label>
+                                        <Label>Upload Design (PDF/Image/Word/Excel)</Label>
                                         <div className="border-2 border-dashed border-primary/20 rounded-xl p-8 text-center hover:bg-primary/5 hover:border-primary/40 transition-all relative cursor-pointer group">
                                             <input
                                                 type="file"
                                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
                                                 onChange={handleFileChange}
-                                                accept="image/*,.pdf"
+                                                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
                                             />
                                             <div className="flex flex-col items-center justify-center space-y-2 relative z-10">
                                                 {isUploading ? (

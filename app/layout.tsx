@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Professional Printing Services | Ghana",
+  title: "OB_Print | Professional Printing Services Ghana",
   description: "High-quality printing delivered to your door. Business cards, stickers, banners, and more.",
 };
 

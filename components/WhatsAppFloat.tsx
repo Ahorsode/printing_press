@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 
 export default function WhatsAppFloat() {
-    const phoneNumber = "233542897396"; // Updated number
+    const phoneNumber = "233550091091"; // Updated number
     const message = "Hello! I would like to make an inquiry.";
 
     const whatsappLink = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(

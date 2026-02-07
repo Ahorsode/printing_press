@@ -35,7 +35,7 @@ export default function Header() {
                     <div className="p-2 rounded-lg bg-primary/10">
                         <Printer className="h-6 w-6 text-primary" />
                     </div>
-                    <span className="text-foreground">PrintPro <span className="text-primary">Ghana</span></span>
+                    <span className="text-foreground">OB_Print</span>
                 </div>
                 <div className="ml-auto flex gap-4">
                     <Button
